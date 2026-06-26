@@ -15,6 +15,43 @@ fix(parser): return null on empty input
 
 The output is also saved to `result.md`.
 
+## Architecture
+
+Two entry points (the CLI and the git hook) share one engine, which talks to a
+local Gemma model through Ollama — nothing leaves your machine.
+
+```mermaid
+flowchart TD
+    A1["diff file<br/>(.diff / .txt)"] --> B1["CLI<br/>python3 generate_doc.py"]
+    A2["git diff --cached"] --> B2["git hook<br/>prepare-commit-msg"]
+
+    B1 --> C1
+    B2 --> C1
+
+    subgraph Engine["generate_doc.py · shared engine"]
+        C1["build_prompt()<br/>rules + few-shot + template"] --> C2["call_gemma()<br/>HTTP POST"]
+        C2 --> C3["extract_commit_line()<br/>regex validation"]
+    end
+
+    subgraph Local["Local AI · fully offline"]
+        D1["Ollama<br/>localhost:11434"] --> D2["Gemma 2B<br/>(Google open weights)"]
+    end
+
+    C2 -->|prompt| D1
+    D2 -->|generated text| C2
+
+    C3 --> E1["terminal output<br/>+ result.md"]
+    C3 --> E2["pre-filled<br/>commit message"]
+```
+
+| Stage | Responsibility |
+|-------|----------------|
+| **Entry points** | CLI for manual use, git hook for automatic suggestions |
+| **`build_prompt`** | wraps the diff in rules + a few-shot example + a strict template |
+| **`call_gemma`** | POSTs to Ollama and returns Gemma's response (handles errors/timeouts) |
+| **`extract_commit_line`** | regex-validates the output is a real Conventional Commit |
+| **Outputs** | prints markdown + saves `result.md`, or fills the commit message |
+
 ## Requirements
 
 - Python 3
