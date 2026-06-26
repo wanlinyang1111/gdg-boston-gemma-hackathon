@@ -1,0 +1,20 @@
+diff --git a/utils/parser.py b/utils/parser.py
+index 1a2b3c4..5d6e7f8 100644
+--- a/utils/parser.py
++++ b/utils/parser.py
+@@ -42,7 +42,10 @@ def parse_json(raw):
+-    data = json.loads(raw)
+-    return data["result"]
++    if not raw:
++        return None
++    data = json.loads(raw)
++    return data.get("result")
+diff --git a/tests/test_parser.py b/tests/test_parser.py
+index 9a8b7c6..3f2e1d0 100644
+--- a/tests/test_parser.py
++++ b/tests/test_parser.py
+@@ -10,3 +10,6 @@ def test_parse_basic():
+     assert parse_json('{"result": 1}') == 1
++
++def test_parse_empty_returns_none():
++    assert parse_json("") is None
