@@ -6,10 +6,10 @@
 
 ---
 
-## 0. Setup BEFORE you present （上台前先做好，不要現場才開）
-- [ ] `ollama serve` is running (確認 Ollama 有開)
+## 0. Setup BEFORE you present (do this beforehand, not live on stage)
+- [ ] `ollama serve` is running (make sure Ollama is up)
 - [ ] Terminal is in the project folder: `cd ~/Desktop/hack0626`
-- [ ] Font size is big enough for the room (terminal 字放大)
+- [ ] Font size is big enough for the room (zoom in the terminal)
 - [ ] Clear the screen: `clear`
 
 ---
@@ -31,13 +31,13 @@
 
 ## 3. Live Demo (~60s)
 
-*(跑第一個指令 — 簡單範例)*
+*(run the first command — simple example)*
 ```bash
 python3 generate_doc.py sample.diff
 ```
 **"Here's a simple change. Gemma reads the diff and gives us a clean `type(scope): description` commit, plus a changelog bullet."**
 
-*(跑第二個指令 — 沒看過的真實 diff，這是重點)*
+*(run the second command — an unseen real diff, this is the key moment)*
 ```bash
 python3 generate_doc.py test_real.diff
 ```
@@ -52,7 +52,7 @@ python3 generate_doc.py test_real.diff
 1. **"A strict prompt — we restrict the commit type to the six valid ones and give a few-shot example, so a small 2B model stays on format."**
 2. **"A regex validator — if the model ever drifts off the Conventional Commit spec, the tool flags it instead of silently passing bad output."**
 
-*(可現場示範 edge case — 空檔案被擋)*
+*(optional: show an edge case live — a missing file is blocked)*
 ```bash
 python3 generate_doc.py nope.diff
 ```
@@ -66,7 +66,7 @@ python3 generate_doc.py nope.diff
 
 **"Thank you — happy to take questions."**
 
-*(打開 repo 頁面備用)*
+*(have the repo page open as backup)*
 > https://github.com/wanlinyang1111/gdg-boston-gemma-hackathon
 
 ---
