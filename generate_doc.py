@@ -1,33 +1,15 @@
 import requests
-import json
 import argparse
 import re
 
-# 1. Parse arguments (read filename from the command line)
-parser = argparse.ArgumentParser(description="Turn a git diff into a Conventional Commit + Changelog")
-parser.add_argument("input_file", help="path to the .diff or .txt file to analyze")
-parser.add_argument("-o", "--output", default="result.md", help="output filename (default: result.md)")
-args = parser.parse_args()
+MODEL_NAME = "gemma2:2b"
+OLLAMA_URL = "http://localhost:11434/api/generate"
+COMMIT_PATTERN = r"^(feat|fix|docs|refactor|test|chore)(\([\w\-]+\))?: .+"
 
-input_file = args.input_file
-output_file = args.output
-model_name = "gemma2:2b"
 
-# 2. Read the diff content
-try:
-    with open(input_file, 'r', encoding='utf-8') as f:
-        diff_content = f.read()
-except FileNotFoundError:
-    print(f"Error: file '{input_file}' not found. Please check the path.")
-    exit()
-
-# Guard against empty files: if there is nothing left after stripping whitespace, stop
-if not diff_content.strip():
-    print(f"Error: file '{input_file}' is empty, there is no diff to analyze.")
-    exit()
-
-# 3. Build the prompt for the model
-prompt = f"""You are a Git assistant. Analyze the git diff below and produce exactly two sections.
+def build_prompt(diff_content):
+    """Wrap a git diff in the structured prompt that keeps Gemma on-format."""
+    return f"""You are a Git assistant. Analyze the git diff below and produce exactly two sections.
 
 RULES:
 - The commit "type" MUST be one of: feat, fix, docs, refactor, test, chore
@@ -60,46 +42,80 @@ DIFF TO ANALYZE:
 {diff_content}
 """
 
-# 4. Call the Ollama API
-url = "http://localhost:11434/api/generate"
-payload = {
-    "model": model_name,
-    "prompt": prompt,
-    "stream": False
-}
 
-print(f"Reading {input_file} and contacting Gemma, please wait...")
-try:
-    response = requests.post(url, json=payload, timeout=120)
-except requests.exceptions.ConnectionError:
-    print("Error: cannot reach Ollama. Make sure `ollama serve` is running and gemma2:2b is installed.")
-    exit()
-except requests.exceptions.Timeout:
-    print("Error: timed out waiting for Gemma (120s). The diff may be too large, try a smaller one.")
-    exit()
+def call_gemma(prompt, model_name=MODEL_NAME, timeout=120):
+    """Send the prompt to the local Gemma model via Ollama and return the text.
 
-if response.status_code == 200:
-    result = response.json()
-    ai_response = result['response'].strip()
+    Raises RuntimeError with a friendly message on any failure so callers
+    (the CLI or the git hook) can decide how to handle it.
+    """
+    payload = {"model": model_name, "prompt": prompt, "stream": False}
+    try:
+        response = requests.post(OLLAMA_URL, json=payload, timeout=timeout)
+    except requests.exceptions.ConnectionError:
+        raise RuntimeError("cannot reach Ollama. Make sure `ollama serve` is running and gemma2:2b is installed.")
+    except requests.exceptions.Timeout:
+        raise RuntimeError(f"timed out waiting for Gemma ({timeout}s). The diff may be too large, try a smaller one.")
 
-    # 5. Print the result to the terminal (the challenge requires printing markdown)
+    if response.status_code != 200:
+        raise RuntimeError(f"Ollama returned a non-200 status code: {response.status_code}")
+
+    return response.json()["response"].strip()
+
+
+def extract_commit_line(text):
+    """Return the first valid Conventional Commit line in the text, or None."""
+    for line in text.splitlines():
+        line = line.strip()
+        if re.match(COMMIT_PATTERN, line):
+            return line
+    return None
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Turn a git diff into a Conventional Commit + Changelog")
+    parser.add_argument("input_file", help="path to the .diff or .txt file to analyze")
+    parser.add_argument("-o", "--output", default="result.md", help="output filename (default: result.md)")
+    args = parser.parse_args()
+
+    # 1. Read the diff content
+    try:
+        with open(args.input_file, "r", encoding="utf-8") as f:
+            diff_content = f.read()
+    except FileNotFoundError:
+        print(f"Error: file '{args.input_file}' not found. Please check the path.")
+        return
+
+    # Guard against empty files
+    if not diff_content.strip():
+        print(f"Error: file '{args.input_file}' is empty, there is no diff to analyze.")
+        return
+
+    # 2. Build the prompt and call Gemma
+    print(f"Reading {args.input_file} and contacting Gemma, please wait...")
+    try:
+        ai_response = call_gemma(build_prompt(diff_content))
+    except RuntimeError as e:
+        print(f"Error: {e}")
+        return
+
+    # 3. Print the result to the terminal (the challenge requires printing markdown)
     print("\n" + "=" * 40)
     print(ai_response)
     print("=" * 40 + "\n")
 
-    # 6. Validate that the commit line is a valid Conventional Commit
-    #    Rule: type(scope): description, where type is restricted to the allowed set
-    pattern = r"^(feat|fix|docs|refactor|test|chore)(\([\w\-]+\))?: .+"
-    commit_lines = [ln.strip() for ln in ai_response.splitlines()
-                    if re.match(pattern, ln.strip())]
-    if commit_lines:
-        print(f"OK - format validation passed: {commit_lines[0]}")
+    # 4. Validate the commit line
+    commit_line = extract_commit_line(ai_response)
+    if commit_line:
+        print(f"OK - format validation passed: {commit_line}")
     else:
         print("WARNING: no valid Conventional Commit line found, please review the output manually.")
 
-    # 7. Save the result to a file
-    with open(output_file, 'w', encoding='utf-8') as f:
+    # 5. Save the result to a file
+    with open(args.output, "w", encoding="utf-8") as f:
         f.write(ai_response)
-    print(f"Done! Result saved to {output_file}")
-else:
-    print(f"Error: Ollama returned a non-200 status code: {response.status_code}")
+    print(f"Done! Result saved to {args.output}")
+
+
+if __name__ == "__main__":
+    main()

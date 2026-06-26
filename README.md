@@ -86,6 +86,37 @@ python3 generate_doc.py <(git diff HEAD)
 
 Then copy the suggested commit line into `git commit -m "..."`.
 
+## Git hook — auto-suggest on every commit (zero typing)
+
+Install the included `prepare-commit-msg` hook and you never have to run the
+script by hand. Just `git commit`, and Gemma pre-fills the message in your editor.
+
+```bash
+# install into the current repo (or pass a path: ./install_hook.sh /path/to/repo)
+./install_hook.sh
+```
+
+Then in that repo:
+
+```bash
+git add .
+git commit            # no -m: your editor opens with an AI-suggested message already filled in
+```
+
+Example of what lands in the editor:
+
+```
+refactor(auth): implement password check in user login
+
+# ^ AI-suggested commit message (Gemma). Edit or delete as you like.
+```
+
+Design notes:
+
+- **Never blocks a commit.** If Ollama is down or anything fails, the hook exits cleanly and leaves your message untouched — committing always works.
+- **Only fires when needed.** It skips `git commit -m`, merges, squashes, and amends, so it only helps when you'd otherwise be writing a message from scratch.
+- **Reuses the same engine.** The hook imports `build_prompt` / `call_gemma` / `extract_commit_line` from `generate_doc.py` — no duplicated prompt logic.
+
 ## How it works
 
 ```
@@ -100,7 +131,9 @@ diff file → read → build prompt (rules + example + template) → Gemma (Olla
 
 | File | Purpose |
 |------|---------|
-| `generate_doc.py` | the main CLI script |
+| `generate_doc.py` | the main CLI script (also exposes reusable functions) |
+| `hooks/prepare-commit-msg` | git hook template that auto-fills commit messages |
+| `install_hook.sh` | one-command installer for the git hook |
 | `sample.diff` | minimal demo diff (Hello World → Hackathon) |
 | `test_real.diff` | a more realistic multi-file PR diff for testing generalization |
 | `result.md` | latest generated output |
