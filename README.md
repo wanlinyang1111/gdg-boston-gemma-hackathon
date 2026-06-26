@@ -44,6 +44,48 @@ python3 generate_doc.py --help
 | `input_file` | yes | path to the `.diff` / `.txt` file to analyze |
 | `-o`, `--output` | no | output filename (default: `result.md`) |
 
+## Generating a diff to feed it
+
+A `diff` is git's report of *what changed* between two states. The most common ways to produce one:
+
+```bash
+# uncommitted changes (most common)
+git diff > my_change.diff
+
+# staged changes (after `git add`)
+git diff --staged > my_change.diff
+
+# everything since the last commit (staged + unstaged) — safest
+git diff HEAD > my_change.diff
+
+# what a specific commit changed
+git show <commit-id> > my_change.diff
+
+# difference between two branches (i.e. a pull request)
+git diff main..feature-branch > my_change.diff
+
+# a single file only
+git diff calculator.py > my_change.diff
+```
+
+You can also grab any GitHub pull request as a diff by appending `.diff` to its URL:
+
+```bash
+curl -L https://github.com/pallets/flask/pull/5000.diff > flask_pr.diff
+```
+
+### Real-world workflow
+
+```bash
+git diff HEAD > change.diff           # 1. capture your changes
+python3 generate_doc.py change.diff   # 2. get a commit message + changelog
+
+# or in one line, no temp file (process substitution):
+python3 generate_doc.py <(git diff HEAD)
+```
+
+Then copy the suggested commit line into `git commit -m "..."`.
+
 ## How it works
 
 ```
